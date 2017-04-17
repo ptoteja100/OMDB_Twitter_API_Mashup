@@ -16,7 +16,7 @@ import sqlite3
 #Create your caching set up:
 
 
-#--------calling APIs---------
+#--------calling APIs----------
 
 #Define a function Tweet() that takes an input string and returns a dictionary of 20+ tweets on that input
 
