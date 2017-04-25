@@ -679,7 +679,7 @@ class MovieClassMethodsTests(unittest.TestCase):
 
 
 
-## Remember to invoke all your tests...
+## Remember to invoke all your tests....
 
 if __name__ == "__main__":
 	unittest.main(verbosity = 2)
