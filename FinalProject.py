@@ -633,7 +633,7 @@ class APItests(unittest.TestCase):
 		self.assertTrue(type(get_tweets('Tom Cruise')), type({"hi","bye"}))   #testing to see if the returned value of get_tweets() is of type dictionary.
 
 	def test_get_tweets2(self):
-		self.assertTrue(len(get_tweets('Nicolas Cage')['statuses']) > 1)   #testing if the twitter information is processed correctly and that list inside 'statuses' adequate information that we will be pulling for our tweet table.
+		self.assertTrue(len(get_tweets('Nicolas Cage')['statuses']) > 1)   #testing if the twitter information is processed correctly and that list inside 'statuses' has adequate information that we will be pulling for our tweet table.
 
 	def test_user_info1(self):
 		self.assertTrue(type(user_info(get_tweets('Will Smith'))), type({"hello", "goodbye"}))   #testing to see if the user_info function returns a type dictionary.
