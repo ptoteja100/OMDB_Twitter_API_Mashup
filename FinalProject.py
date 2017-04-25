@@ -609,7 +609,7 @@ textfile.close()
 
 print("---------------Test Cases Below This Line--------------")
 
-# Write your test cases here. Here are all of our test cases.
+# Write your test cases here. Here are all of our test cases - at least 1 per method.
 
 class Sqltask(unittest.TestCase):
 	def test_users1(self):
