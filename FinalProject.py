@@ -69,9 +69,6 @@ import sqlite3
 
 
 
-
-
-
 #Tweepy Setup:
 
 consumer_key = twitter_info.consumer_key
@@ -86,7 +83,7 @@ api = tweepy.API(auth, parser=tweepy.parsers.JSONParser())
 
 #Create your caching set up:
 
-CACHE_FNAME = "SI206_final_project_cache.json"    
+CACHE_FNAME = "SI206_final_project_cache.json"       #We use three cache files because reptitive keys will change our value even though we want to display different information for that key.
 
 try:
 	cache_file = open(CACHE_FNAME, 'r')
@@ -110,7 +107,7 @@ except:
 	OMDB_CACHE_DICTION = {}
 
 
-CACHE_UNAME = "User_final_project_cache.json"      #another needed since user_mentions will cause us to always get cached data 
+CACHE_UNAME = "User_final_project_cache.json"      #Another needed since user_mentions will cause us to always get cached data! 
 
 try:
 	cache_file = open(CACHE_UNAME, 'r')
@@ -119,56 +116,57 @@ try:
 	USER_CACHE_DICTION = json.loads(cache_contents)
 except:
 	USER_CACHE_DICTION = {}
+
 #--------calling APIs---------
 
-#Define a function Tweet() that takes an input string and returns a dictionary of 20+ tweets on that input
+#Define a function get_tweets() that takes an input string and returns a dictionary of 15 tweets on that input
 
 def get_tweets(input_string):
 	returnedList = []
 
 	if input_string in CACHE_DICTION:
-		print("Using cached data for", input_string)
+		print("Using cached data for", input_string)    #If we've searched this leading actor before, return the cached tiwtter information about it.
 		returnedList = CACHE_DICTION[input_string]
 	else:
-		print("getting new data from the web for", input_string)
-		search_results = api.search(input_string)
-		toString = json.dumps(search_results)
-		toJsonAgain = json.loads(toString)
+		print("getting new data from the web for", input_string)   #else, we are going to the web to find the tweets about that query
+		search_results = api.search(input_string)    
+		toString = json.dumps(search_results)     #Converting into a string for visualizing purposes
+		toJsonAgain = json.loads(toString)		#putting it all back into json format and assigning it to variable returnedList in the next line.
 		returnedList = toJsonAgain
 
-	CACHE_DICTION[input_string] = returnedList
+	CACHE_DICTION[input_string] = returnedList    #Now that we went to the web, let's cache the data in one of our files so that we can access it later.
 	f = open(CACHE_FNAME, "w")
 	f.write(json.dumps(CACHE_DICTION))
 	f.close()
 
-	return returnedList
+	return returnedList    #return the tweet information
 
 
 
-def user_info(dictionary):
+def user_info(dictionary):  #this function takes a dictionary (should be tweets) and returns the info of the user who tweeted
 	returnedList = []
 	screenames_list = []
 	stringed_version = json.dumps(dictionary)
-	if stringed_version in USER_CACHE_DICTION:
+	if stringed_version in USER_CACHE_DICTION:   #Get from cached if we've run this before
 		print("Using cached data")
 		returnedList = USER_CACHE_DICTION[stringed_version]
 	else:
-		for i in dictionary['statuses']:
+		for i in dictionary['statuses']:     #accessing the user's screenames so that we can get their info based on this field
 			tester = i['user']['screen_name']
 			screenames_list.append(tester)
 
 	for j in screenames_list:
-		search_results = api.get_user(screen_name = j)  
+		search_results = api.get_user(screen_name = j)   #tweepy function to get the user's info based on their inputted user name
 		toString = json.dumps(search_results)
 		toJsonAgain = json.loads(toString)
 		returnedList.append(toJsonAgain)
 
-	USER_CACHE_DICTION[stringed_version] = returnedList
+	USER_CACHE_DICTION[stringed_version] = returnedList    #Cache this info for next time we run this function
 	f = open(CACHE_UNAME, "w")
 	f.write(json.dumps(USER_CACHE_DICTION))
 	f.close()
 
-	return returnedList
+	return returnedList      #return our users' info
 
 
 
@@ -179,14 +177,14 @@ def usersmentioned_info(dictionary):        #returns all the user mentions witho
 	screenames_list = []
 	dummylist = []
 	stringed_version = json.dumps(dictionary)
-	if stringed_version in CACHE_DICTION:
+	if stringed_version in CACHE_DICTION:     #use cached data
 		print("Using cached data")
 		returnedList = CACHE_DICTION[stringed_version]
 
 	else:
 
 		for i in dictionary['statuses']:
-			tester = i['entities']['user_mentions']
+			tester = i['entities']['user_mentions']    #Otherwise, getting the screenames of the users that are mentioned in the tweets. We will use this function in constructing our social network in our database.
 			dummylist.append(tester)
 		for listy in dummylist:
 			for j in listy:
@@ -197,7 +195,7 @@ def usersmentioned_info(dictionary):        #returns all the user mentions witho
 	remove_duplicates_list = []
 	for i in screenames_list:
 		if i not in remove_duplicates_list:
-			remove_duplicates_list.append(i)		
+			remove_duplicates_list.append(i)		  #Removing duplicates so that we do not gather replicated data when getting info of each user.
 	
 
 
@@ -208,63 +206,63 @@ def usersmentioned_info(dictionary):        #returns all the user mentions witho
 			
 
 	for j in remove_duplicates_list:
-		search_results = api.get_user(screen_name = j)  
+		search_results = api.get_user(screen_name = j)   #tweepy function to get the users who are mentioned's twitter info
 		toString = json.dumps(search_results)
 		toJsonAgain = json.loads(toString)
 		returnedList.append(toJsonAgain)
 
-	CACHE_DICTION[stringed_version] = returnedList
+	CACHE_DICTION[stringed_version] = returnedList   #caching in our file so we have it for next time!
 	f = open(CACHE_FNAME, "w")
 	f.write(json.dumps(CACHE_DICTION))
 	f.close()
 
-	return returnedList
+	return returnedList   #returning the twitter info about the users mentioned
 
 
 
-def OMDB(movie_name):
+def OMDB(movie_name):        #takes a movie name and makes a call to the OMDB API to get a JSON object that essentially holds all the important information about the movie.
 	returnedList = []
 
-	if movie_name in OMDB_CACHE_DICTION:
+	if movie_name in OMDB_CACHE_DICTION:    #Used cached data if we've run this on a movie we've searched before.
 		print("Using cached data for", movie_name)
 		omdb_data_dictionary = OMDB_CACHE_DICTION[movie_name]
 	else:
 		print("getting new data from the web for", movie_name)
-		customizingurl = movie_name.replace(" ", "+")
+		customizingurl = movie_name.replace(" ", "+")               #For movie names with multiple words, we need to do a little clean up to make sure we make the right call to the URL.
 		customizingurlfinal = "http://www.omdbapi.com/?t=" + customizingurl
 		omdb_data_dictionary = requests.get(customizingurlfinal).text   #omdb_data now holds all of the movie's data in a dictionary.
 		toJson = json.loads(omdb_data_dictionary)
 		omdb_data_dictionary = toJson
 	OMDB_CACHE_DICTION[movie_name] = omdb_data_dictionary
 	f = open(CACHE_MNAME, "w")
-	f.write(json.dumps(OMDB_CACHE_DICTION))
+	f.write(json.dumps(OMDB_CACHE_DICTION))       #Caching our movie info into our file
 	f.close()
 
-	return omdb_data_dictionary
+	return omdb_data_dictionary    #returning the dictionary that hold all of our movie info.
 
 
-class Movie():
+class Movie():      #This class will represent a movie
 
 
-	def __init__(self, dict_of_movie_data, title, director, rating):
+	def __init__(self, dict_of_movie_data, title, director, rating):   #constructor takes a few parameters - the dictionary of the movie data, the title, director, and rating of the movie
 
-		self.dict_of_movie_data = dict_of_movie_data
+		self.dict_of_movie_data = dict_of_movie_data    
 		self.title = title
 		self.director = director
 		self.rating = rating
 
 	def __str__(self):
 
-		return "{} is a movie that was directed by {} and was given an IMDB rating of {}.".format(self.title, self.director, self.rating)
+		return "{} is a movie that was directed by {} and was given an IMDB rating of {}.".format(self.title, self.director, self.rating)   #For reading purposes - basically gives us a quick summary on the movie we have on hand
 
-	def listactors(self):
+	def listactors(self):				#returns a list of the actors in the movie out of the dictionary of movie info inputted.
 		list_of_actors = []
 		string_of_actors = self.dict_of_movie_data['Actors']
 		list_of_actors = string_of_actors.split(", ")	
 			
 		return list_of_actors
 
-	def numlanguages(self):
+	def numlanguages(self):      #returns the number of languages that the movie has out of the dictionary of movie info inputted.
 		list_of_languages = []
 		string_of_languages = self.dict_of_movie_data['Language']
 		list_of_languages = string_of_languages.split(", ")
@@ -276,7 +274,7 @@ class Movie():
 
 
 
-search_terms = ["Batman Begins", "National Treasure", "Moneyball"] 
+search_terms = ["Batman Begins", "National Treasure", "Moneyball"]      #These are the movies I ran. Plug in something different and check out the results!
 list_of_movies = []
 for movie in search_terms:
 	movie_data = OMDB(movie)
@@ -289,7 +287,7 @@ star_actorlist = []
 
 
 
-for i in list_of_movies:
+for i in list_of_movies:    #for the leading actor in each movie, we are making a list with all the tweet info.
 	star_actor = i.listactors()[0]
 	star_actorlist.append(star_actor)
 	star_actor_tweets = get_tweets(star_actor)
@@ -299,12 +297,12 @@ for i in list_of_movies:
 
 
 
-list_of_user_info = []
+list_of_user_info = []    #accumulating all the twitter info for the users mentioned in order to create our social network in the database.
 for tweetdata in list_of_tweets:
 	x = usersmentioned_info(tweetdata)
 	list_of_user_info.append(x)
 
-listofposterinfo = []
+listofposterinfo = []          #for each of the tweets, we are getting the poster's user info and putting it all into 1 list.
 for tweetdata in list_of_tweets:
 	y = user_info(tweetdata)
 	listofposterinfo.append(y)
@@ -319,7 +317,7 @@ for tweetdata in list_of_tweets:
 
 
 
-conn = sqlite3.connect('final_project_206.db')
+conn = sqlite3.connect('final_project_206.db')    #Setting up our database
 cur = conn.cursor()
 cur.execute('DROP TABLE IF EXISTS final_project_206')
 
@@ -369,7 +367,7 @@ for i in list_of_movies:
 
 movietups = list(zip(movieidlist, titlelist, directorlist, numlanguageslist, ratinglist, mainactorlist))
 
-statement = 'INSERT INTO Movies VALUES (?, ?, ?, ?, ?, ?)'
+statement = 'INSERT INTO Movies VALUES (?, ?, ?, ?, ?, ?)'     #putting our movie info in the database
 
 for t in movietups:
 	cur.execute(statement, t)
@@ -394,7 +392,7 @@ for i in list_of_user_info:
 
 usersmentionedtups = list(zip(listofuserids, listofuserscreennames, listofnumfavsbyuser))
 
-statement = 'INSERT OR IGNORE INTO Users_Mentioned VALUES (?, ?, ?)'
+statement = 'INSERT OR IGNORE INTO Users_Mentioned VALUES (?, ?, ?)'    #putting in our social network info into the database
 
 for t in usersmentionedtups:
 	cur.execute(statement, t)
@@ -415,7 +413,7 @@ for i in listofposterinfo:
 
 usertups = list(zip(ids, postersnames, numberfavs))
 
-statement = 'INSERT OR IGNORE INTO Users VALUES (?, ?, ?)'
+statement = 'INSERT OR IGNORE INTO Users VALUES (?, ?, ?)'   #putting all the posters info into our database.
 
 for t in usertups:
 	cur.execute(statement,t)
@@ -462,7 +460,7 @@ for search_term in mainactorlist:       #referring to the movie table since we f
 
 tweetstups = list(zip(tweetidlist, textlist, postersnames, moviesearchlist,  numberfavoriteslist, numberofretweetslist))
 
-statement  = 'INSERT OR IGNORE INTO Tweets VALUES (?, ?, ?, ?, ?, ?)'
+statement  = 'INSERT OR IGNORE INTO Tweets VALUES (?, ?, ?, ?, ?, ?)'    #putting all the tweets we found into the database
 
 for t in tweetstups:
 	cur.execute(statement, t)
@@ -475,9 +473,9 @@ conn.commit()
 
 query = "SELECT Tweets.text FROM Tweets WHERE num_retweets > 50"
 tupled_more_than_50_rts = list(cur.execute(query))						#list comprehension
-list_of_more_than_50_rts = [i[0] for i in tupled_more_than_50_rts]    #list of all tweets with more than 1000 retweets     
+list_of_more_than_50_rts = [i[0] for i in tupled_more_than_50_rts]    #list of all tweets with more than 50 retweets     
 
-print("-------------------")
+print("-------------------")											
 print("-------------------")
 print("These are all the tweets with more than 50 retweets:")
 print(list_of_more_than_50_rts)
@@ -493,10 +491,10 @@ for k,v in joined_result:
 	d[k].append(v)				#new containers from collections library
 twitter_dictionary = dict(d)    #dictionary of users joined with their tweets
 
-print("-------------------")
+print("-------------------")	#getting all the movies along side the number of retweets for their leading actor 
 print("-------------------")
 print("Which leading actor is most popular?")
-print("Here are all the movies along side the number or retweets for their leading actor:")
+print("Here are all the movies along side the number of retweets for their leading actor:")
 print(twitter_dictionary)    
 
 
@@ -504,7 +502,7 @@ query = "SELECT Tweets.text, Tweets.num_favs FROM Tweets"
 tupled_list = list(cur.execute(query))
 tweets_with_likes = list(filter(lambda x: x[1] > 0, tupled_list))   #filter used
 
-print("-------------------")
+print("-------------------")				#Got all the tweets that got likes and how many they got
 print("-------------------")
 print("Here are all the tweets that actually got some likes...and how many likes they got:")
 print(tweets_with_likes)
@@ -519,7 +517,7 @@ for i in tupled_mentioned:
 		users_mentioned_filtered[i[0]] = i[1]
 
 
-print("-------------------")
+print("-------------------")          #From the users mentioned, we got all the active users based on if they favorited more than 10,000 times.
 print("-------------------")
 print("Here are the active twitter users amongst the users mentioned based off how much they favorite (greater than 10,000!):")
 print(users_mentioned_filtered)
@@ -532,9 +530,10 @@ print("-------------------")
 
 
 
+#Everything below is for writing our findings into a text file so that it is clear and easy to read for the user!
 
 
-text_file = "Check_Out_The_Results.txt"
+text_file = "Check_Out_The_Results.txt"    #defining our .txt file
 textfile = open(text_file, 'w')
 textfile.write("These are the movies we did some digging on:")
 textfile.write("\n")
@@ -545,33 +544,61 @@ for i in search_terms:
 textfile.write("\n")
 textfile.write("\n")	
 for i in list_of_movies:
-	textfile.write(i.__str__())
+	textfile.write(i.__str__())    #calling the __str__() function for us to get the basic information about the movies we inputted.
 	textfile.write("\n")
 textfile.write("\n")
 textfile.write("\n")
 textfile.write("These are all the tweets with more than 50 retweets:")
 textfile.write("\n")
 textfile.write("\n")
-textfile.write(str(list_of_more_than_50_rts))
+for tweet in list_of_more_than_50_rts:
+	textfile.write(str(tweet))
+	textfile.write("\n")
+	textfile.write("\n")
 textfile.write("\n")
 textfile.write("\n")
-textfile.write("Which leading actor is most popular?")
-textfile.write("Here are all the movies along side the number or retweets for their leading actor:")
+textfile.write("Which leading actor is most popular? ")
+textfile.write("Here are all the movies along side the number of retweets each of the 15 tweets got for their leading actor:")
 textfile.write("\n")
 textfile.write("\n")
-textfile.write(str(twitter_dictionary))
+listofmoviekeys = list(twitter_dictionary.keys())
+for i in listofmoviekeys:
+	textfile.write("Movie Name: " + str(i))
+	textfile.write("\n")
+	textfile.write("The 15 tweets got ")
+	for j in twitter_dictionary[i]:
+		textfile.write(str(j) + " ")
+	textfile.write("retweets respectively")
+	textfile.write("\n")
+	textfile.write("\n")
+
+
+
 textfile.write("\n")
 textfile.write("\n")
 textfile.write("Here are all the tweets that actually got some likes...and how many likes they got:")
 textfile.write("\n")
 textfile.write("\n")
-textfile.write(str(tweets_with_likes))
+for i in tweets_with_likes:
+	textfile.write(str(i[0]))
+	textfile.write("\n")
+	textfile.write("The number of likes this tweet got: " + str(i[1]))
+	textfile.write("\n")
+	textfile.write("\n")
+
 textfile.write("\n")
 textfile.write("\n")
-textfile.write("Here are the active twitter users amongst the users mentioned based off how much they favorite (greater than 10,000!):")
+textfile.write("Here are the active twitter users amongst the users mentioned. They all have more than 10,000 favorites!:")
 textfile.write("\n")
 textfile.write("\n")
-textfile.write(str(users_mentioned_filtered))
+listofkeys = list(users_mentioned_filtered.keys())
+for i in listofkeys:
+	textfile.write("Screename: " + str(i))
+	textfile.write("\n")
+	textfile.write("And their number of favorites: " + str(users_mentioned_filtered[i]))
+	textfile.write("\n")
+	textfile.write("\n")
+
 textfile.write("\n")
 textfile.close()
 
@@ -582,11 +609,11 @@ textfile.close()
 
 print("---------------Test Cases Below This Line--------------")
 
-# Write your test cases here.
+# Write your test cases here. Here are all of our test cases.
 
 class Sqltask(unittest.TestCase):
 	def test_users1(self):
-		conn = sqlite3.connect('finalproject_tweets.db')
+		conn = sqlite3.connect('final_project_206.db')
 		cur = conn.cursor()
 		cur.execute('SELECT * FROM Users');
 		result = cur.fetchall()
@@ -594,33 +621,60 @@ class Sqltask(unittest.TestCase):
 		conn.close()
 
 	def test_users2(self):
-		conn = sqlite3.connect('finalproject_tweets.db')
+		conn = sqlite3.connect('final_project_206.db')
 		cur = conn.cursor()
 		cur.execute('SELECT * FROM Tweets');
 		result = cur.fetchall()
 		self.assertTrue(len(result[0]) == 6, "Testing that there are 6 columns in the Tweets table")
 		conn.close()
 
-class Moretests(unittest.TestCase):
-	def test_tweeter(self):
-		self.assertTrue(type(tweeter('Tom Cruise')), type({"hi","bye"}), "Testing that the tweeter function returns a type dictionary of tweets")
+class APItests(unittest.TestCase):
+	def test_get_tweets(self):
+		self.assertTrue(type(get_tweets('Tom Cruise')), type({"hi","bye"}))   #testing to see if the returned value of get_tweets() is of type dictionary.
 
-	def test_twitterusers(self):
-		self.assertTrue(type(twitterusers('Tome Cruise')), type({"hi","bye"}), "Testing that the twitterusers function returns a type dictionary of users")
-	def test_Movie1(self):
-		x = omdb('Titanic')
-		mymovie = Movie(dict = x)
-		self.assertTrue(type(mymovie.listactors()), type([]), "Testing that the listactors function returns a type list when called on a movie")
-	def test_Movie2(self):
-		x = omdb('Titanic')
-		mymovie = Movie(dict = x)
-		self.assertTrue(type(mymovie.numlanguages()), type(1), "Testing that the numlanguages function returns a type integer when called on a movie")
-	def test_actor_frequency(self):
-		self.assertEqual(type(actor_frequency),type({}),"Testing that mostcommon_actor across inputed movies is of type dictionary")
+	def test_get_tweets2(self):
+		self.assertTrue(len(get_tweets('Nicolas Cage')['statuses']) > 1)   #testing if the twitter information is processed correctly and that list inside 'statuses' adequate information that we will be pulling for our tweet table.
+
+	def test_user_info1(self):
+		self.assertTrue(type(user_info(get_tweets('Will Smith'))), type({"hello", "goodbye"}))   #testing to see if the user_info function returns a type dictionary.
+
+	def test_usersmentioned_info(self):
+		self.assertTrue(type(usersmentioned_info(get_tweets('Christian Bale'))), type({"hi", "bye"}))  #testing to see if usersmentioned_info() returns a dictionary with all the info of the users mentioned in the tweets.
+
+	def test_OMDB(self):
+		self.assertTrue(type(OMDB('King Kong')['Title']), type('string please'))  #tests to see if we successfully return a dictionary of the movie's info by checking the type of the title which should be type string.
+
+	def test_OMDB2(self):
+		self.assertTrue(OMDB('21')['Title'], '21')  #testing to see if we got the right movie information by checking to see if the title in the dictionary matches our query. Supplemental to test_OMDB().
 
 
-	def test_movielist(self):
-		self.assertEqual(len(movielist) >= 3,"Testing that we will be running the ombd function on a list that contains 3 or more movie names")
+
+class MovieClassMethodsTests(unittest.TestCase):
+
+	
+	def test_constructor(self):
+		moviedata = OMDB('Finding Nemo')
+		tester_movie = Movie(moviedata, moviedata['Title'], moviedata['Director'], moviedata['imdbRating'])
+		self.assertTrue(type(tester_movie.title), type('This should be a string'))    #testing the constructor with the instance variable, checking to see if the title of the movie is of type string.
+
+
+	def test_str(self):
+		moviedata = OMDB('Finding Nemo')
+		tester_movie = Movie(moviedata, moviedata['Title'], moviedata['Director'], moviedata['imdbRating'])
+		self.assertTrue(type(tester_movie.__str__()), type('This should be a string too!'))   #checking to see if the __str__() method returns a string keeping in mind that this output is for users.
+
+	def test_listactors(self):
+		moviedata = OMDB('Finding Nemo')
+		tester_movie = Movie(moviedata, moviedata['Title'], moviedata['Director'], moviedata['imdbRating'])
+		self.assertTrue(type(tester_movie.listactors()), type([]))      #checking to see if the listactors() function actually returns a list of the actors for the movie that it was called on. 
+
+	def test_numlanguages(self):
+		moviedata = OMDB('Finding Nemo')
+		tester_movie = Movie(moviedata, moviedata['Title'], moviedata['Director'], moviedata['imdbRating'])
+		self.assertTrue(type(tester_movie.numlanguages()), type(1))    #testing to see if a number is returned for the numlanguages() function where we should get the number of languages that are in that movie.
+
+
+
 
 
 
