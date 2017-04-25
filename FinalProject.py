@@ -517,13 +517,13 @@ for i in tupled_mentioned:
 		users_mentioned_filtered[i[0]] = i[1]
 
 
-print("-------------------")          #From the users mentioned, we got all the active users based on if they favorited more than 10,000 times.
-print("-------------------")
+print("------------------")          #From the users mentioned, we got all the active users based on if they favorited more than 10,000 times.
+print("------------------")
 print("Here are the active twitter users amongst the users mentioned based off how much they favorite (greater than 10,000!):")
 print(users_mentioned_filtered)
 
-print("-------------------")
-print("-------------------")
+print("------------------")
+print("------------------")
 
 
 
