@@ -1,0 +1,413 @@
+---
+title: "An Analysis of Jersey City's Citi Bikes"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, warning = FALSE, message = FALSE)
+```
+
+##**Introduction**
+
+Bicycle-sharing has exploded in popularity in the last decade. As of 2014, public bike sharing services were available in 50 countries and over 700 cities with close to a million bikes in circulation. Bicycle-sharing systems allow for users to borrow a bike from one location and return it to another dock in the city as long as both docks belong to the same system. One such system includes Citi Bike, which is a privately owned company sponsored by Citigroup, that operates in New York City and Jersey City. With approximately 130,000 subscribers, it has been proven to be one of the more popular systems. And with that, there is a ton of interesting data to consider.
+
+The purpose of this file is to analyze Jersey City bike patterns between January and September of 2016. We will answer questions regarding who our main segment is, where bikers ride, how far they go, where we can find supply deficits, the effects of weather on riding behavior, and much more. We hope to find relevent insights that will help in improving and optimizing the system. 
+
+##**Understanding the Data**
+
+```{r}
+library(dplyr)
+library(readr)
+
+#Combining the Datasets
+full_citi_bike_df <- list.files(full.names = TRUE) %>% lapply(read_csv) %>% bind_rows
+full_citi_bike_df$Gender <- as.factor(full_citi_bike_df$Gender)
+
+```
+
+###A quick exploration
+
+It appears that greater than 60% of riders are male. The median trip duration for all riders is around 500 seconds or 8.33 minutes.
+
+```{r, results = "hide"}
+str(full_citi_bike_df)
+summary(full_citi_bike_df)
+
+barplot(prop.table(table(full_citi_bike_df$Gender)), main = "Gender Proportion", sub = "Figure 1.1", xlab = "Gender", ylab = "Relative Frequency", names.arg= c("NA", "Males", "Females"), col = "forestgreen")
+barplot(prop.table(table(full_citi_bike_df$`Start Station Name`)), main = "Start Station Proportions", sub = "Figure 1.2",  ylab = "Relative Frequency", xlab = "Start Station Name", col = "blue")
+barplot(prop.table(table(full_citi_bike_df$`End Station Name`)), main = "End Station Proportions", sub = "Figure 1.3", ylab = "Relative Frequency", xlab = "End Station Name", col = "blue" )
+boxplot(full_citi_bike_df$`Trip Duration`, ylim = c(0,1500), main = "Trip Duration Summary Overall", sub = "Figure 1.4", ylab = "Trip Duration")
+```
+
+
+##** Identifying some patterns in the data**
+
+###How does age affect ride duration and length of bike rides? Which age group uses our bikes the most?
+
+As we can see from our first bar chart, it appears that the average trip duration is highest for the age bracket 46-60. However, since we took the mean, outliers may be skewing this data. As for the other age groups, trip duration seems to be pretty uniform across the board. If we look at figure 2.2 we can see that there are a fews riders in the lower age brackets that took longer trips in comparison to the rest. Still, we can confirm that the trip durations are relatively uniform across the other age brackets with the exception of a few young folks who have riden longer. 
+
+Figure 2.3 shows results for distance where age bracket 61-75 rode the furthest. In figure 2.4, it is interesting to see that younger individuals (age groups 16-30 and 31-45) travel further on their trips. This makes sense since they are are probably more fit and have the endurance to do so. 
+
+Finally, we can see in figure 2.5 that more than 50% of our observations fall in the 31-45 age group. This means that this is probably our target audience followed by individuals aged 16-30.
+
+```{r, results = "hide"}
+library(ggplot2)
+library("geosphere")
+
+#gives average trip duration for each of the ages
+full_citi_bike_df$Age <- (2016 - full_citi_bike_df$`Birth Year`)
+#aggregate(full_citi_bike_df$`Trip Duration`, list(full_citi_bike_df$Age), mean, na.rm = TRUE) 
+```
+
+```{r}
+#Creating age groups
+library(scales)
+full_citi_bike_df['Age.Group'] <- NA
+full_citi_bike_df$Age.Group <- ifelse(full_citi_bike_df$Age>15 & full_citi_bike_df$Age<31, "16-30", ifelse(full_citi_bike_df$Age>30 & full_citi_bike_df$Age<46, "31-45", ifelse(full_citi_bike_df$Age>=46 & full_citi_bike_df$Age<=60, "46-60", ifelse(full_citi_bike_df$Age>=61 & full_citi_bike_df$Age<=75, "61-75", ifelse(full_citi_bike_df$Age>=76 & full_citi_bike_df$Age<=90, "76-90", ifelse(full_citi_bike_df$Age>=91 & full_citi_bike_df$Age<=105, "91-105", ifelse(full_citi_bike_df$Age>=106 & full_citi_bike_df$Age<=120, "106-120", NA)))))))
+
+#gives average trip duration for each of the age groups
+age.group.list <- aggregate(full_citi_bike_df$`Trip Duration`, list(full_citi_bike_df$Age.Group), mean, na.rm = TRUE) 
+ggplot(age.group.list) + geom_bar(mapping = aes(x = Group.1, y = x), stat = 'identity', fill = "steelblue") + ggtitle("Age Group versus Trip Duration") + labs(x = "Age Groups", y = "Trip Duration") + labs(subtitle = "Figure 2.1")
+
+minus_outlier = full_citi_bike_df[-176420,] #to remove extreme val 
+ggplot(minus_outlier, aes(Age.Group, `Trip Duration`)) + geom_jitter(width = 0.25, aes(colour = Age.Group)) + ggtitle("Age Group versus Trip Duration") + labs(x = "Age Groups", y = "Trip Duration", subtitle = "Figure 2.2") + theme(legend.position="none") + scale_y_continuous(labels = comma)
+
+#getting average trip distance (in meters) for each age group
+full_citi_bike_df$Distance <- distHaversine(full_citi_bike_df[ ,c("Start Station Longitude", "Start Station Latitude")],full_citi_bike_df[,c("End Station Longitude", "End Station Latitude")])
+age.group.list.distance <- aggregate(full_citi_bike_df$Distance, list(full_citi_bike_df$Age.Group), mean, na.rm = TRUE)
+ggplot(age.group.list.distance) + geom_bar(mapping = aes(x = Group.1, y = x), stat = 'identity', fill = "steelblue") + ggtitle("Age Group versus Trip Distance") + labs(x = "Age Groups", y = "Trip Distance", subtitle = "Figure 2.3")
+
+ggplot(full_citi_bike_df, aes(Age.Group, Distance)) + geom_jitter(width = 0.25, aes(colour = Age.Group)) + ggtitle("Age Group versus Distance") + labs(x = "Age Groups", y = "Distance", subtitle = "Figure 2.4") + theme(legend.position="none")
+
+#which age group is our main audience?
+barplot(prop.table(table(full_citi_bike_df$Age.Group)), main = "Age Group Frequencies", sub = "Figure 2.5", col = "navy")
+
+
+```
+
+###How does bike traffic change from month to month? What season is most popular for business? 
+
+As we can see in figure 2.6, March is most popular month for business. This is likely because March is the time where the weather gets better, so riders are probably excited to start riding again. Meanwhile, it is interesting that August sees the least amount of usage given that the weather is usually pretty good. When we look at the seasons, we see that spring is most popular mostly because the weather has just started to improve. It is important to note that average summer and autumn usage is less than winter. This could be because riders use the bikes to commute to work. During these months, it might be too hot to bike in work clothes. Also, if people use the bikes for exercise, they probably have alternative options for getting exercise outdoors in the warmer months. 
+
+```{r}
+#find most popular months by freqeuncy of number of rides
+#group months by season and take frequency of number of ride
+
+#creating a column for months
+library('lubridate')
+full_citi_bike_df$Month = month(as.POSIXlt(full_citi_bike_df$`Start Time`, format = "%Y-%m-%d %H:%M:%S"))
+
+#creating a column for seasons
+full_citi_bike_df['Season'] <- NA
+full_citi_bike_df$Season <- ifelse(full_citi_bike_df$Month>=3 & full_citi_bike_df$Month<=5, "Spring", ifelse(full_citi_bike_df$Month>=6 & full_citi_bike_df$Month<=8, "Summer", ifelse(full_citi_bike_df$Month>=9 & full_citi_bike_df$Month<=11, "Autumn", ifelse(full_citi_bike_df$Month>11 | full_citi_bike_df$Month<3, "Winter", NA))))
+
+by_month <-aggregate(full_citi_bike_df$`Trip Duration`, list(Month = full_citi_bike_df$Month), mean, na.rm = TRUE) 
+names(by_month) = c("Month", "Avg Duration in Seconds")
+
+by_month
+by_month$Month<- as.factor(by_month$Month)
+duration_by_month_plot <- ggplot(by_month, aes(x=by_month$Month, y=by_month$`Avg Duration in Seconds`, fill=by_month$Month)) + geom_bar(stat = "identity") + ggtitle("Month versus Average Duration") + theme(legend.position="none") + ylab("Avg. Duration in Seconds") + xlab("Month") + labs(subtitle = "Figure 2.6")
+
+duration_by_month_plot
+```
+
+```{r}
+
+#by season
+by_season <- aggregate(full_citi_bike_df$`Trip Duration`, list(Season = full_citi_bike_df$Season), mean, na.rm = TRUE)
+names(by_season) = c("Season", "Avg Duration in Seconds")
+by_season
+
+```
+
+```{r}
+slices <- by_season$`Avg Duration in Seconds`
+lbls <- by_season$Season
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct)
+lbls <- paste(lbls,"%",sep="")
+
+pie(by_season$`Avg Duration in Seconds` , labels = lbls, explode = 0.1, main = "Season versus Average Distance")
+``` 
+
+
+
+###Is there a difference in the number of rides between men and women of different ages? 
+
+Across all age groups, it appears that men use Citi Bikes more than women. In figure 2.8, we can see the difference to be most significant in the 31-45 range, where it seems to be that men are taking close to 3x the number of rides as women. 
+
+In terms of relative frequencies, figure 2.9 shows that there is a higher proportion of female customers who are in the 16-30 age group in comparison to male customers who are in the same age group. Further, we see that among male customers there is a larger proportion who are in the 46-60 age group than there are among female customers. This signifies that older males are more likely to be customers than younger men, and the same trend holds true for the 61-75 age group. 
+
+```{r}
+citi_bike_without_zero_gender <- subset(full_citi_bike_df, Gender!= 0) #removing rows where gender is unavailable
+citi_bike_without_zero_gender["Genders"] <- NA
+citi_bike_without_zero_gender$Genders <- ifelse(citi_bike_without_zero_gender$Gender==1, "Males", ifelse(citi_bike_without_zero_gender$Gender==2, "Females", NA))
+
+rides_per_age_group_gender <- ggplot(data = citi_bike_without_zero_gender) + geom_bar(mapping = aes(x = citi_bike_without_zero_gender$Age.Group), fill = "steelblue") + facet_wrap(~citi_bike_without_zero_gender$Genders, ncol = 2) + xlab("Age Group") + ggtitle("Number of Rides per Age Group") + labs(subtitle = "Figure 2.8")
+rides_per_age_group_gender
+```
+```{r}
+relative_frequencies_age_and_gender <- ggplot(citi_bike_without_zero_gender, aes(Age.Group, group = Gender)) + 
+          geom_bar(aes(y = ..prop.., fill = factor(..x..)), stat="count") + 
+          scale_y_continuous(labels=scales::percent) +
+          ylab("Relative Frequencies (Percentage)") +
+          facet_grid(~Genders) + xlab("Age Group") + ggtitle("Percentage of Customers in Each Age Group by Gender") + theme(legend.position="none") + labs(subtitle = "Figure 2.9")
+relative_frequencies_age_and_gender
+```
+
+
+###Station Traffic by Gender 
+
+According to our heat maps below, it appears that there is barely any difference between where men and women are starting their bike rides or ending them.
+
+```{r}
+library(ggmap)
+
+#Getting map from Google Maps API
+map2 <- get_map(location = c(lon = -74.04425, lat = 40.72760), zoom = 14, maptype = "roadmap", source = "google")
+
+
+ggmap(map2, extent = "device") + stat_density2d(data = citi_bike_without_zero_gender, aes(x = `Start Station Longitude`, y = `Start Station Latitude`, fill = ..level.., alpha = ..level..), geom = "polygon", size = 0.01, bins = 16) + scale_fill_gradient(low = "red", high = "green") + facet_wrap(~Genders) + ggtitle ("Start Station Traffic by Gender") + theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank(), plot.title = element_text(hjust = 0.5))
+
+
+
+map3 <- get_map(location = c(lon = -74.04425, lat = 40.72760), zoom = 14, maptype = "roadmap", source = "google")
+
+
+ggmap(map3, extent = "device") + stat_density2d(data = citi_bike_without_zero_gender, aes(x = `End Station Longitude`, y = `End Station Latitude`, fill = ..level.., alpha = ..level..), geom = "polygon", size = 0.01, bins = 16) + scale_fill_gradient(low = "red", high = "green") + facet_wrap(~Genders) + ggtitle ("End Station Traffic by Gender") + theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank(), plot.title = element_text(hjust = 0.5))
+```
+
+
+###What end stations are most popular at different times of the year?
+
+The most popular end stations overall are Exchange Place, Grove St PATH, Hamilton Park, Newport PATH, and Sip Ave. Given that more customers are males it is not surprising that overall frequencies at each of these stations are much higher for men than for women. 
+
+```{r fig1, fig.height = 9, fig.width = 6}
+#finding top5 end stations across all data
+top5_End_Stations <- names(sort(table(citi_bike_without_zero_gender$`End Station Name`), decreasing = TRUE)[1:5])
+
+#subsetting from original data frame only the rows where end station is one of the top 5 end stations
+top5_dataframe <- subset(citi_bike_without_zero_gender, citi_bike_without_zero_gender$`End Station Name` == top5_End_Stations) 
+
+#plotting the overall most popular end stations by gender and season
+gender_season_station_plot <- ggplot(data = top5_dataframe) + geom_bar(mapping = aes(x = top5_dataframe$`End Station Name`), fill = "steelblue") + facet_wrap(~Season+Genders, ncol = 2) + ggtitle("Most Popular End Stations by Gender and Season") + xlab("End Station Name") + ylab("Number of Rides") + labs(subtitle = "Figure 2.10")
+gender_season_station_plot + theme(axis.text.x = element_text(angle = 45, hjust = 1), strip.text.x = element_text(size = 11), plot.title = element_text(size=16), axis.title.x = element_text(size = 14), axis.title.y = element_text(size = 14)) #rotating xlabels, changing title, axes and facet_wrap text sizes
+```
+
+###What end stations are most popular for each gender? Do males have different most popular end stations than females? 
+
+We found that males and females have the same top 5 most popular end stations, however in different order of frequency. The relationship is plotted in figure 2.11. The top five end stations for males are: 1) Grove St PATH 2) Exchange Place 3) Sip Ave 4) Hamilton Park, and 5) Newport PATH. For women the top five end stations are 1) Grove St PATH 2) Exchange Place 3) Hamilton Oark 4) Sip Ave, and 5) Newport PATH. We also see that a higher proportion of females end at Grove St PATH and Hamilton Park than males. For the remaining stations males end at these stations at a higher rate. 
+
+```{r}
+#Checking if there are different popular end stations for males as opposed to females:
+
+#finding top 5 end stations for females
+only_females <- subset(citi_bike_without_zero_gender, citi_bike_without_zero_gender$Gender == 2)
+top5_End_Stations_females <- names(sort(table(only_females$`End Station Name`), decreasing = TRUE)[1:5])
+
+#finding top 5 end stations for males
+only_males <- subset(citi_bike_without_zero_gender, citi_bike_without_zero_gender$Gender == 1)
+top5_End_Stations_males <- names(sort(table(only_males$`End Station Name`), decreasing = TRUE)[1:5])
+```
+
+```{r}
+#plotting popularity of stations. Using the proportion of females and males (relative frequencies) as opposed to frequency count to plot among males versus females what are the most popular end stations. Two graphs showing this difference. 
+plot_of_gender_end_station_frequencies <- ggplot(top5_dataframe, aes(top5_dataframe$`End Station Name`, group = top5_dataframe$Genders)) + 
+          geom_bar(aes(y = ..prop.., fill = top5_dataframe$Genders), position = "dodge", stat="count") + 
+          scale_y_continuous(labels=scales::percent) +
+          ylab("relative frequencies") + ggtitle("Relative Frequencies of End Stations by Gender") + xlab("End Station Name") + ylab("Relative Frequency")+theme(axis.text.x = element_text(angle = 45, hjust = 1)) +scale_fill_discrete(name = "Gender") + labs(subtitle = "Figure 2.11")
+plot_of_gender_end_station_frequencies
+```
+
+##**Asymmetric Traffic: Stations running out of bikes because of assymetric traffic (arrivals and departures are not equal) is a big problem for Citi Bike.**
+
+###Which stations can use an increase in their bike storage capacity?
+
+See Interactive Map Below
+
+```{r}
+#creating two tables, one for frequency of departures and another for arrivals for each station.
+library(plyr)
+departure_freq = count(full_citi_bike_df, "`Start Station Name`") 
+arrival_freq = count(full_citi_bike_df, "`End Station Name`")
+
+names(departure_freq) <- c("Station_Names")
+names(arrival_freq) <- c("Station_Names")
+
+total <- merge(departure_freq,arrival_freq,by="Station_Names")
+names(total) <- c("Station_Names", "Num_Departures", "Num_Arrivals")
+total["Difference"] <- (total$Num_Arrivals - total$Num_Departures)
+total <- total[1:47,] #removing NA
+ordered_total <- total[order(total$Difference),]
+ordered_total$Bike.Deficit <- ifelse(ordered_total$Difference<= -250, "Major Bike Deficit", ifelse(ordered_total$Difference>-250 & ordered_total$Difference<0, "Minor Bike Deficit", ifelse(ordered_total$Difference>= 0, "No Bike Deficit", NA)))
+
+#getting longitude and latitude data into our ordered_total data frame:
+names(ordered_total) <- c("Start Station Name", "Num_Departures", "Num_Arrivals", "Difference", "Bike Deficit")
+long_and_lat_merged <- merge(ordered_total, full_citi_bike_df, by= "Start Station Name")
+long_and_lat_merged = long_and_lat_merged[!duplicated(long_and_lat_merged$`Start Station Name`),]
+long_and_lat_merged[,6:9] <- NULL
+long_and_lat_merged[,8:22] <- NULL
+
+```
+
+```{r}
+#making an interactive map using the leaflet package
+library(leaflet)
+library(sp)
+
+long_and_lat_merged$`Start Station Longitude` <- as.numeric(long_and_lat_merged$`Start Station Longitude`)
+long_and_lat_merged$`Start Station Latitude` <- as.numeric(long_and_lat_merged$`Start Station Latitude`)
+
+long_and_lat_merged.sp <- SpatialPointsDataFrame(long_and_lat_merged[,c(6,7)], long_and_lat_merged[,-c(6,7)])
+
+
+pal <- colorFactor(c("red", "orange" , "green"), domain = c("Major Bike Deficit", "Minor Bike Deficit", "No Bike Deficit"))
+
+
+m <- leaflet() %>% addTiles() %>% addCircleMarkers(data = long_and_lat_merged.sp, lng= long_and_lat_merged$`Start Station Longitude`, lat = long_and_lat_merged$`Start Station Latitude`, popup = paste(long_and_lat_merged$`Start Station Name`, " ", "|" , " ", "Number of Bikes:  ", long_and_lat_merged$Difference), color = ~pal(long_and_lat_merged$`Bike Deficit`)) %>% addLegend("bottomright", pal = pal, values = long_and_lat_merged$`Bike Deficit`, title = "Bike Deficits")
+
+m
+
+```
+
+##**How does temperature affect citi bike rides?**
+
+There doesn't seem to be much predictive power in temperature. For all models run there appears to be a very, very low R squared value. Given that these are commuter bikes often used to get to and from work it makes sense that a) if the weather is bad enough to warrant not using a bike then the customer would not get on the bike in the first place, so as to avoid being stuck with the bike in bad weather or weather that does not allow for biking b) if the customer is already on the bike and the weather is not ideal for biking then given that bikes must be dropped off at stations and cannot be left simply anywhere the customer would most likely complete their bike ride and c) given that these bikes are frequently used to get to and from work most customers using these bikes for this purpose can not afford to simply get off the bike in bad weather and not get to work.
+
+```{r, results = "hide"}
+weather_data = read.csv("weather_data.csv")
+full_citi_bike_df$`Start Time` <- as.Date(as.POSIXct(full_citi_bike_df$`Start Time`))
+weather_data$DATE <- as.Date(as.character(weather_data$DATE), "%Y%m%d")
+colnames(weather_data)[3] <- "Start Time"
+
+merged_weather_and_citi <- merge(weather_data,full_citi_bike_df,by="Start Time", check.names = FALSE)
+colnames(merged_weather_and_citi)[1] <- "Date"
+
+#Checking if any of the weather variables are significant
+Overall_Fit <- lm(Distance~PRCP.x+SNWD.x+SNOW.x+TMAX.x+TMIN.x+AWND.x, data = merged_weather_and_citi)
+summary(Overall_Fit)
+
+#Checking variables that were significant in previous model (low r-squared, weak predictive power)
+Temp_Precip_Fit <- lm(Distance~PRCP.x+TMAX.x+TMIN.x, data = merged_weather_and_citi)
+summary(Temp_Precip_Fit)
+```
+
+```{r, results = "hide"}
+#Checking Avg temperatures as opposed to min and max temperatures
+merged_weather_and_citi["Avg_Temp"] <- (merged_weather_and_citi$TMAX.x + merged_weather_and_citi$TMIN.x)/2
+
+#Checking just avg_temperature, whether this has predictive power for distance (low R-squared)
+avg_temp_fit <- lm(Distance~Avg_Temp, data = merged_weather_and_citi)
+summary(avg_temp_fit)
+
+#Quadratic linear regression, squaring prcp for more predictive power as well (low R-squared)
+temp_model_distance <- lm(Distance~scale(Avg_Temp) + I(scale(Avg_Temp)^2) + (PRCP.x)^2, data = merged_weather_and_citi)
+summary(temp_model_distance)
+
+#five_percent_data <- merged_weather_and_citi %>% sample_frac(.05) #gives you randomly selected 20 percent of the data
+
+#Checking trip duration as opposed to distance (low R-squared)
+trip_duration_avg_temp_fit <- lm(`Trip Duration`~PRCP.x+Avg_Temp, data = merged_weather_and_citi)
+summary(trip_duration_avg_temp_fit)
+
+#Quadratic regression for trip duration prediction based off of average temperature (low R-squared)
+temp_model_duration <- lm(`Trip Duration`~scale(Avg_Temp) + I(scale(Avg_Temp)^2), data = merged_weather_and_citi)
+summary(temp_model_duration)
+```
+
+##**Additional Findings**
+
+###How does speed relate to our other variables?
+
+Looking at just the overall mean for all customers we see a very slight increase in speed when there is precipitation as opposed to when there is no precipitation. 
+
+Next, looking at a multiple linear regression of precipitation, average temperature, gender and age group on speed we see the following relationship: 
+
+1. For every additional inch of precipitation, speed is 0.0821226 m/s slower. Speed and precipitation levels are slightly negatively correlated. 
+
+2. For every additional degree in temperature, speed is 0.0051149 m/s slower.
+
+3. The fastest age group is 31-45.
+
+4. When looking at interaction effects, we see the only significant one is the interaction between precipitation and average temperature. For every one degree increase in temperature, speed decreases by .005 m/s on average all else equal.  
+
+It is important to note that the R-Squared value of this model is very low, and thus only has limited predictive power, nonetheless the individual variables are significant for this model. 
+
+```{r}
+#Creating a speed column that is distance (in meters) divided by duration (in seconds). The final units for speed are m/s.
+merged_weather_and_citi["Speed"] <- (merged_weather_and_citi$Distance/merged_weather_and_citi$`Trip Duration`)
+
+
+#Subsetting data into rides that experienced precipitation versus those that did not
+No_Precipitation_Data <- merged_weather_and_citi[which(merged_weather_and_citi$PRCP.x==0), ]
+Precipitation_Data <- merged_weather_and_citi[which(merged_weather_and_citi$PRCP.x>0), ]
+
+#First finding average speed across all customers when there is precipitation and then finding average speed across all customers when there is no precipitation
+avg_speed_no_precipitation = mean(No_Precipitation_Data$Speed, na.rm = TRUE)
+cat("The average speed of customers when there is no precipitation is:", avg_speed_no_precipitation, "m/s")
+
+avg_speed_precipitation = mean(Precipitation_Data$Speed, na.rm = TRUE)
+cat("The average speed of customers when there is precipitation is:", avg_speed_precipitation, "m/s")
+```
+
+```{r}
+cor(Precipitation_Data$PRCP.x, Precipitation_Data$Speed)
+
+```
+However, there is a slight negative correlation between precipitation and speed. Increases in precipitation may lead to slight decreases in speed. 
+
+```{r, results = "hide"}
+merged_weather_and_citi$Age.Group <- as.factor(merged_weather_and_citi$Age.Group)
+speed_fit <- lm(Speed ~ PRCP.x + Avg_Temp + Gender + Age.Group, data = merged_weather_and_citi)
+summary(speed_fit)
+
+#Checking if there are any intearction effects. 
+speed_fit_interactions <- lm(Speed ~ PRCP.x + Avg_Temp + Gender + Age.Group + PRCP.x*Avg_Temp + PRCP.x*Age.Group + PRCP.x*Gender, data = merged_weather_and_citi)
+summary(speed_fit_interactions)
+
+```
+###Which are the most popular stations to travel from and to? Between which stations do people bike fastest?
+
+Interestingly, looking to figure 5.1, we see that four of the top ten routes are the same path as four other paths in the top ten, however in the opposite direction. For instance, we can see that the most popular route to travel is from Brunswick St. to Grove St. PATH, and the 6th most popular route is the reverse route (Grove St. PATH to Brunswick St). From figure 5.2 we can see that the station between which customers travel on average the fastest is Essex Light Rail 12 Ave and W 40 St.
+
+```{r}
+#Creating tuples of the stations traveled from and to for each customer to determine the most popular
+library(tidyverse)
+library(stringr)
+library(data.table)
+newdf <- unite(merged_weather_and_citi, Tuple_of_Stations, `Start Station Name`, `End Station Name`)
+newdf$Tuple_of_Stations <- str_replace_all(newdf$Tuple_of_Stations, "_", " to ")
+
+#The frequency of station pairings. i.e. How many customers traveled from station Warren St to Sip Ave?
+tuple_station_freq = count(newdf, "Tuple_of_Stations")
+tuple_station_freq_df <- as.data.frame(tuple_station_freq)
+tuple_station_freq_df_DESC<- arrange(tuple_station_freq_df, desc(freq))
+
+topTen <- tuple_station_freq_df_DESC[1:10,]
+
+#plotting in descending order the top 10 most popular station combinations
+ggplot(topTen) + geom_bar(aes(reorder(topTen$Tuple_of_Stations, -topTen$freq), y = topTen$freq), stat = "identity", fill = "indianred") + xlab("Route") + ylab("Frequency") + theme(axis.text.x = element_text(angle = 55, hjust = 1)) + ggtitle("Top 10 Most Popular Routes") + labs(subtitle = "Figure 5.1")
+
+#Finding avg speed for each route
+df_speed_station_tuples <- subset(newdf, select=c("Tuple_of_Stations", "Speed"))
+
+
+DT <- data.table(df_speed_station_tuples)
+avg_speed_per_tuple <- DT[, mean(Speed), by = Tuple_of_Stations]
+
+avg_speed_per_tuple_desc <- arrange(avg_speed_per_tuple, desc(V1))
+top10_fastest <- avg_speed_per_tuple_desc[1:10,]
+
+#Plotting top ten fastest routes
+ggplot(top10_fastest) + geom_bar(aes(reorder(top10_fastest$Tuple_of_Stations, -top10_fastest$V1), y = top10_fastest$V1), stat = "identity", fill = "indianred") + xlab("Route") + ylab("Speed (m/s)") + theme(axis.text.x = element_text(angle = 70, hjust = 1)) + ggtitle("Top 10 Fastest Traveled Routes on Avg.") + labs(subtitle = "Figure 5.2")
+```
+
+
+##**Recommendations**
+
+1. The three stations with the largest bike deficits are McGinley Square, Brunswick St, and Sip Ave. At these stations, supply is failing to meet potential demand. To realize this opportunity, I would recommend that Citi Bike reorganize their bike placements. For example, Liberty Light Rail, Lincoln Park, and Union Street have enough excess supply of bicycles to be able to transfer enough over to Sip Ave. to fully meet demand. There would be no costs associated with producing new bikes since we would be transferring bicycles that are currently in the system. We would need to only consider the overhead in transporting a large number of bikes. This model would be easier to employ in Jersey City as there are only sixteen locations with major bike deficits. However, New York City may be experiencing deficits on a much larger scale so this method should be assessed on a case by case basis.
+
+2. March is by far the most popular month for business. We hypothesized that the reason why users do not ride as much in the summer is because the high temperatures make biking an unviable method of transportation to and from work. I recommend that Citi Bike attempt to smooth out demand across the months by adjusting their prices during those that are less popular. By slightly reducing the price, users will be incentivized to take bikes out. However, this will only be worthwhile in the long-run if the increase in rides offsets the decrease in revenue per ride due to the price reduction.
+
+3. Many bike riders are loyal customers to the Citi Bike system. In the 31-45 age group, men are taking 3x the number of rides as women and the average ride lasts 8.55 minutes. I recommend introducing a loyalty program where users are given 10 minutes of free riding for every 100 minutes completed. This will work to stimulate demand amongst customers who already use the bikes. They will strive to reach these checkpoints and subsequently ride longer than 10 minutes on their next ride. Keeping track of the bikes will be easy. However, we will want to consider how we can accurately keeping track of customers' usage. For subscribers, we could potentially look into maintaining a specifc User ID.
+
